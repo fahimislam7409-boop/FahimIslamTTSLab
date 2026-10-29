@@ -383,20 +383,56 @@ const studio = {
     const noteText = (model ? model.summary : "")
       + (mute.length ? " " + mute.join(" and ") + (mute.length > 1 ? " do" : " does") + " not speak " + langName(ui.language) + "." : "");
     const modelNoteEl = document.getElementById("model-note");
-    if (model && model.can_gpu) {
+    const activeUpgrade = model && S && S.jobs && S.jobs.find((j) => j.kind === "install" && j.about && j.about.model === model.id && (j.status === "waiting" || j.status === "running"));
+    if (activeUpgrade) {
+      const gpuName = S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU";
+      modelNoteEl.replaceChildren(
+        h("span", { text: noteText + " " }),
+        h("div", { class: "gpu-banner-studio upgrading", "data-studio-install": activeUpgrade.id },
+          h("div", { class: "gpu-banner-content" },
+            h("strong", { text: "⚡ Upgrading " + model.name + " to " + gpuName + "... " }),
+            h("span", { class: "gpu-status-text", text: activeUpgrade.status === "waiting" ? "Waiting its turn" : (activeUpgrade.detail || "Getting ready") }),
+            h("div", { class: "bar" + (activeUpgrade.progress ? "" : " unknown") },
+              h("i", { style: "width:" + Math.round((activeUpgrade.progress || 0) * 100) + "%" })
+            )
+          ),
+          h("button", {
+            class: "btn small quiet danger",
+            type: "button",
+            text: "Cancel",
+            onclick: () => attempt(() => api.post("/api/jobs/cancel", { id: activeUpgrade.id }))
+          })
+        )
+      );
+    } else if (model && model.can_gpu) {
+      const gpuName = S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU";
+      const shortName = gpuName.replace(/^NVIDIA GeForce /i, "");
+      const btnText = "⚡ Switch to " + shortName;
       modelNoteEl.replaceChildren(
         h("span", { text: noteText + " " }),
         h("div", { class: "gpu-banner-studio" },
           h("div", { class: "gpu-banner-content" },
-            h("strong", { text: "⚡ Accelerate with " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + ": " }),
+            h("strong", { text: "⚡ Accelerate with " + gpuName + ": " }),
             h("span", { text: model.name + " is currently running on the processor. Switch to your graphics card for 10x-20x faster voice generation." })
           ),
-          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async (e) => {
-            e.target.disabled = true;
-            e.target.textContent = "Switching...";
-            if (await attempt(() => api.post("/api/models/install", { id: model.id }))) { window.location.hash = "#models"; refresh(); }
-            else { e.target.disabled = false; }
-          } })
+          h("button", {
+            class: "btn small btn-switch-gpu",
+            type: "button",
+            text: btnText,
+            onclick: async (e) => {
+              const btn = e.target;
+              btn.disabled = true;
+              btn.textContent = "Switching to GPU...";
+              const ok = await attempt(() => api.post("/api/models/install", { id: model.id }));
+              if (ok) {
+                toast("Switching " + model.name + " to " + gpuName + "...");
+                refresh();
+              } else {
+                btn.disabled = false;
+                btn.textContent = btnText;
+              }
+            }
+          })
         )
       );
     } else {
@@ -437,14 +473,28 @@ const studio = {
     }
   },
 
-  /* The first install, watched from the Studio: only the words and the bar change. */
+  /* The first install or active GPU upgrade, watched from the Studio: only the words and the bar change. */
   updateInstall() {
     const job = activeJobs("install")[0];
     const box = job && document.querySelector('[data-install="' + job.id + '"]');
-    if (!box) return;
-    box.querySelector(".progress span").textContent = job.status === "waiting" ? "Waiting its turn" : (job.detail || "Getting ready");
-    box.querySelector(".bar").classList.toggle("unknown", !job.progress);
-    box.querySelector(".bar i").style.width = Math.round((job.progress || 0) * 100) + "%";
+    if (box) {
+      box.querySelector(".progress span").textContent = job.status === "waiting" ? "Waiting its turn" : (job.detail || "Getting ready");
+      box.querySelector(".bar").classList.toggle("unknown", !job.progress);
+      box.querySelector(".bar i").style.width = Math.round((job.progress || 0) * 100) + "%";
+    }
+    const upgradeEl = job && document.querySelector('[data-studio-install="' + job.id + '"]');
+    if (upgradeEl) {
+      const statusSpan = upgradeEl.querySelector(".gpu-status-text");
+      if (statusSpan) statusSpan.textContent = job.status === "waiting" ? "Waiting its turn" : (job.detail || "Getting ready");
+      const bar = upgradeEl.querySelector(".bar");
+      if (bar) {
+        bar.classList.toggle("unknown", !job.progress);
+        const iEl = bar.querySelector("i");
+        if (iEl) iEl.style.width = Math.round((job.progress || 0) * 100) + "%";
+      }
+    } else if (job && job.about && job.about.model === ui.model) {
+      studio.update();
+    }
   },
 
   updateProgress() {
@@ -453,7 +503,16 @@ const studio = {
     const job = activeJobs("speak")[0];
     document.getElementById("chain").classList.toggle("running", !!job);
     if (!job) { box.replaceChildren(); return; }
-    const words = job.status === "waiting" ? "Waiting for the job before this one" : (job.detail || "Starting the model");
+    let words = job.detail || "Starting the model";
+    if (job.status === "waiting") {
+      const other = (S.jobs || []).find((j) => (j.status === "running" || j.status === "waiting") && j.id !== job.id);
+      if (other && other.kind === "install") {
+        const targetModel = S.models && other.about && other.about.model ? S.models.find((m) => m.id === other.about.model) : null;
+        words = "Waiting for " + (targetModel ? targetModel.name : "installation") + " to finish (" + (other.detail || "downloading") + ")";
+      } else {
+        words = "Waiting for the job before this one";
+      }
+    }
     const wide = Math.round((job.progress || 0) * 100) + "%";
     const old = box.querySelector('.progress[data-job="' + job.id + '"]');
     if (old) { // same job: change the words and the bar, leave the Cancel button where it is
@@ -797,17 +856,24 @@ const modelsView = {
         h("p", { class: "note", text: "Runs on " + m.runs_on + "." }),
         m.can_gpu ? h("div", { class: "gpu-switch-box" },
           h("div", { class: "gpu-badge" }, "⚡ Running on CPU — GPU Available!"),
-          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async (e) => {
-            e.target.disabled = true;
-            e.target.textContent = "Switching to GPU...";
-            if (await attempt(() => api.post("/api/models/install", { id: m.id }))) {
-              toast("Switching " + m.name + " to " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + "...");
-              refresh();
-            } else {
-              e.target.disabled = false;
-              e.target.textContent = "⚡ Switch to GPU";
+          h("button", {
+            class: "btn small btn-switch-gpu",
+            type: "button",
+            text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"),
+            onclick: async (e) => {
+              const btn = e.target;
+              const orig = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = "Switching to GPU...";
+              if (await attempt(() => api.post("/api/models/install", { id: m.id }))) {
+                toast("Switching " + m.name + " to " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + "...");
+                refresh();
+              } else {
+                btn.disabled = false;
+                btn.textContent = orig;
+              }
             }
-          } })
+          })
         ) : "",
         m.per10 ? h("p", { class: "note", text: "On this PC, 10 seconds of voice takes about " + seconds(m.per10) + "." }) : "",
         h("button", { class: "btn small", type: "button", text: "Test again", onclick: async () => {
