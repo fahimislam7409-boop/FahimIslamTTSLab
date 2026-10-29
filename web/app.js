@@ -386,9 +386,15 @@ const studio = {
     if (model && model.can_gpu) {
       modelNoteEl.replaceChildren(
         h("span", { text: noteText + " " }),
-        h("span", { style: "display:inline-flex;align-items:center;gap:6px;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);padding:2px 8px;border-radius:6px;font-size:12px;margin-top:4px;" },
-          "⚡ Running on CPU. " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "Graphics card") + " is ready! ",
-          h("a", { href: "#models", style: "color:#93c5fd;font-weight:600;text-decoration:underline;", text: "Activate GPU in Models" }))
+        h("div", { class: "gpu-banner-studio" },
+          h("div", { class: "gpu-banner-content" },
+            h("strong", { text: "⚡ Accelerate with " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + ": " }),
+            h("span", { text: model.name + " is currently running on the processor. Switch to your graphics card for 10x-20x faster voice generation." })
+          ),
+          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
+            if (await attempt(() => api.post("/api/models/install", { id: model.id }))) { window.location.hash = "#models"; refresh(); }
+          } })
+        )
       );
     } else {
       modelNoteEl.textContent = noteText;
@@ -786,9 +792,9 @@ const modelsView = {
       side.append(
         h("p", { class: "status on", text: "Installed" }),
         h("p", { class: "note", text: "Runs on " + m.runs_on + "." }),
-        m.can_gpu ? h("div", { style: "margin:6px 0;" },
-          h("p", { class: "note", style: "color:#fbbf24;font-size:11px;font-weight:600;margin-bottom:4px;" }, "⚡ Running on CPU — GPU Available!"),
-          h("button", { class: "btn small primary", type: "button", style: "background:var(--accent);font-weight:600;", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
+        m.can_gpu ? h("div", { class: "gpu-switch-box" },
+          h("div", { class: "gpu-badge" }, "⚡ Running on CPU — GPU Available!"),
+          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
             if (await attempt(() => api.post("/api/models/install", { id: m.id }))) refresh();
           } })
         ) : "",
