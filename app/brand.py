@@ -1,6 +1,6 @@
 """The name and the credit line. Every screen, banner and page takes them from here."""
 
-NAME = "Fahim Islam TTS Lab"
+NAME = "Fahim TTS Lab"
 VERSION = "2.0.0"
 CREDIT = "Developer Fahim Islam"
 CHANNEL_NAME = "Freelancer Fahim Islam"

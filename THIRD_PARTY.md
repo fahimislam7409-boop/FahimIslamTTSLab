@@ -1,4 +1,4 @@
-# What Fahim Islam TTS Lab downloads, and whose it is
+# Third-Party Dependencies & Model Licenses - Fahim TTS Lab
 
 This repository holds only the app: the page, the small local server and the
 installer logic. It is MIT licensed (see `LICENSE`).

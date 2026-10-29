@@ -93,7 +93,7 @@ def _clean_env() -> dict:
 
 
 TOO_DEEP = ("The app's folder has a long path, and Windows cannot unpack PyTorch that deep inside it. "
-            "Move the Fahim Islam TTS Lab folder somewhere shorter, for example C:\\FahimIslamTTSLab, start it again and press Install.")  # fmt: skip
+            "Move the Fahim TTS Lab folder somewhere shorter, for example C:\\FahimTTSLab, start it again and press Install.")  # fmt: skip
 
 _PIP_FAILURES = (
     (r"Long Path support|path too long|File name too long", TOO_DEEP),

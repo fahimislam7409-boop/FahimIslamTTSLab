@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Fahim Islam TTS Lab - Developer Fahim Islam
+title Fahim TTS Lab - Developer Fahim Islam
 cd /d "%~dp0"
 
 rem The app runs on a small private copy of Python kept in the runtime folder,
@@ -14,7 +14,7 @@ set "PYSHA=8766a8775746235e23cf5aee5027ab1060bb981d93110577adcf3508aa0cbd55"
 if exist "%PY%" goto run
 
 echo.
-echo   Fahim Islam TTS Lab - first start
+echo   Fahim TTS Lab - first start
 echo   Developer Fahim Islam
 echo.
 echo   Getting a small private copy of Python (11 MB). This happens once.
@@ -47,4 +47,3 @@ pause
 
 :end
 endlocal
-

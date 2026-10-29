@@ -1,8 +1,8 @@
-"""Fahim Islam TTS Lab: start the local server and open the page.
+"""Fahim TTS Lab: start the local server and open the page.
 
     python app\\main.py [--port 7870] [--no-browser]
 
-Started for the user by "Start Fahim Islam TTS Lab.bat".
+Started for the user by "Start Fahim TTS Lab.bat".
 """
 
 from __future__ import annotations

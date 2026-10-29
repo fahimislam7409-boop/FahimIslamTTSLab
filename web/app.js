@@ -1,4 +1,4 @@
-/* Fahim Islam TTS Lab. Developer Fahim Islam.
+/* Fahim TTS Lab. Developer Fahim Islam.
    The page: four views over one state object that the local server hands out.
    No framework and nothing loaded from the internet. User text is only ever
    put on the page as text, never as HTML. */
@@ -969,7 +969,7 @@ function show(view) {
   if (ui.rec) { ui.rec.cancelled = true; ui.rec.recorder.stop(); }
   ui.view = VIEWS[view] ? view : "studio";
   document.querySelectorAll(".nav a").forEach((a) => a.dataset.view === ui.view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
-  document.title = ui.view.charAt(0).toUpperCase() + ui.view.slice(1) + " - Fahim Islam TTS Lab";
+  document.title = ui.view.charAt(0).toUpperCase() + ui.view.slice(1) + " - Fahim TTS Lab";
   VIEWS[ui.view].mount();
   main.append(makeFooter());
   window.scrollTo(0, 0);
