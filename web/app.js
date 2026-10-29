@@ -380,8 +380,19 @@ const studio = {
       })
       : [h("a", { class: "chip add", href: "#models", text: "Install a model" })]));
     const mute = ready.filter((m) => !speaks(m.id, ui.language)).map((m) => m.name);
-    document.getElementById("model-note").textContent = (model ? model.summary : "")
+    const noteText = (model ? model.summary : "")
       + (mute.length ? " " + mute.join(" and ") + (mute.length > 1 ? " do" : " does") + " not speak " + langName(ui.language) + "." : "");
+    const modelNoteEl = document.getElementById("model-note");
+    if (model && model.can_gpu) {
+      modelNoteEl.replaceChildren(
+        h("span", { text: noteText + " " }),
+        h("span", { style: "display:inline-flex;align-items:center;gap:6px;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);padding:2px 8px;border-radius:6px;font-size:12px;margin-top:4px;" },
+          "⚡ Running on CPU. " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "Graphics card") + " is ready! ",
+          h("a", { href: "#models", style: "color:#93c5fd;font-weight:600;text-decoration:underline;", text: "Activate GPU in Models" }))
+      );
+    } else {
+      modelNoteEl.textContent = noteText;
+    }
 
     document.getElementById("stage-voice").classList.toggle("lit", !!ui.voice || (!!model && !model.needs_voice));
     document.getElementById("stage-model").classList.toggle("lit", !!model);
@@ -775,6 +786,12 @@ const modelsView = {
       side.append(
         h("p", { class: "status on", text: "Installed" }),
         h("p", { class: "note", text: "Runs on " + m.runs_on + "." }),
+        m.can_gpu ? h("div", { style: "margin:6px 0;" },
+          h("p", { class: "note", style: "color:#fbbf24;font-size:11px;font-weight:600;margin-bottom:4px;" }, "⚡ Running on CPU — GPU Available!"),
+          h("button", { class: "btn small primary", type: "button", style: "background:var(--accent);font-weight:600;", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
+            if (await attempt(() => api.post("/api/models/install", { id: m.id }))) refresh();
+          } })
+        ) : "",
         m.per10 ? h("p", { class: "note", text: "On this PC, 10 seconds of voice takes about " + seconds(m.per10) + "." }) : "",
         h("button", { class: "btn small", type: "button", text: "Test again", onclick: async () => {
           if (await attempt(() => api.post("/api/models/install", { id: m.id }))) refresh();

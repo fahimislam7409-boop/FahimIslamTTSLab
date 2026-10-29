@@ -147,7 +147,12 @@ def generate(job, text: str, voice_id: str, model_id: str, language: str) -> dic
     if voice_id and voice is None:
         raise UserError("That voice was not found. Pick another voice.")
     entry = engines.installed()["models"][model_id]
-    rt = entry["runtime"]
+    rt = engines.best_ready_runtime(model_id, entry["runtime"])
+    if rt != entry.get("runtime"):
+        def update_entry(data: dict) -> dict:
+            data.setdefault("models", {}).setdefault(model_id, {})["runtime"] = rt
+            return data
+        store.update(paths.INSTALLED, {}, update_entry)
     pieces = split_script(text, piece_chars(language))
     if not pieces:
         raise UserError("There are no words in this script.")

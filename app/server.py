@@ -53,6 +53,14 @@ def scan_hardware() -> None:
     found = hardware.detect()
     with _hw_lock:
         _hw = found
+    cfg = store.read(paths.CONFIG, {})
+    if cfg.get("device") == "cpu" and not cfg.get("force_cpu_explicit"):
+        gpus = found.get("gpus") or []
+        has_gpu = any((g.get("vendor") == "nvidia" and g.get("vram_gb", 0) >= 3.5) or
+                      (g.get("vendor") in ("amd", "intel") and not g.get("integrated") and g.get("vram_gb", 0) >= 3.5)
+                      for g in gpus)
+        if has_gpu:
+            store.update(paths.CONFIG, {}, lambda c: {**c, "device": "auto"})
 
 
 def current_plan() -> dict | None:
@@ -72,18 +80,22 @@ def state() -> dict:
     for mid, m in MODELS.items():
         entry = done["models"].get(mid) or {}
         ready = engines.model_ready(mid)
+        rt = entry.get("runtime") if ready else None
+        backend = RUNTIMES[rt]["backend"] if (ready and rt in RUNTIMES) else None
+        can_gpu = bool(ready and plan and plan.get("device") in ("cuda", "vulkan") and backend == "cpu")
         models.append({
             "id": mid, "name": m["name"], "by": m["by"], "license": m["license"], "home": m["home"],
             "summary": m["summary"], "detail": m["detail"], "size_gb": round(m["size"] / 1024**3, 1),
             "engine_gb": round(engines.engine_bytes(_order(plan, mid)) / 1024**3, 1) if plan and not ready else 0,
             "optional": bool(m.get("optional")), "needs_voice": m["needs_voice"], "installed": ready,
-            "runtime": entry.get("runtime") if ready else None,
-            "runs_on": RUNTIMES[entry["runtime"]]["on"] if ready else None,
-            "device": RUNTIMES[entry["runtime"]]["backend"] if ready else None,
+            "runtime": rt,
+            "runs_on": RUNTIMES[rt]["on"] if (ready and rt in RUNTIMES) else None,
+            "device": backend,
             "per10": entry.get("per10") if ready else None,
             "notes": entry.get("notes", []) if ready else [],
             "problem": entry.get("problem", "") if ready else "",
             "fit": fits.get(mid),
+            "can_gpu": can_gpu,
         })  # fmt: skip
     key = cfg["gemini_key"]
     return {
@@ -116,6 +128,7 @@ def start_install(model_id: str) -> dict:
     plan = current_plan()
     if plan is None:
         raise UserError("Still looking at this PC. Try again in a few seconds.")
+    engines.forget_failures()
     order = _order(plan, model_id)
     job = jobs.submit("install", f"Installing {MODELS[model_id]['name']}", lambda j: engines.install_model(j, model_id, order), {"model": model_id})
     return {"job": job.id}
@@ -390,6 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["gemini_model"] = re.sub(r"[^A-Za-z0-9._-]", "", str(data["gemini_model"] or ""))[:80]
             if data.get("device") in ("auto", "cpu") and data["device"] != cfg.get("device", "auto"):
                 cfg["device"] = data["device"]
+                cfg["force_cpu_explicit"] = (data["device"] == "cpu")
                 changed_device = True
             if languages.known(data.get("language")):
                 cfg["language"] = data["language"]

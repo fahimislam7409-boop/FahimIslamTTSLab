@@ -95,6 +95,19 @@ def model_ready(model_id: str) -> bool:
     return bool(entry) and entry.get("runtime") in RUNTIMES and all(_have(model_id, f) for f in model_files(model_id)) and runtime_ready(entry["runtime"])
 
 
+def best_ready_runtime(model_id: str, current_rt: str) -> str:
+    """If a faster GPU runtime is ready on this PC, return that instead of a slow CPU fallback."""
+    if is_omni(model_id):
+        for candidate in ("torch-cu128", "torch-cu126"):
+            if candidate in RUNTIMES and runtime_ready(candidate):
+                return candidate
+    else:
+        for candidate in ("cuda13", "vulkan"):
+            if candidate in RUNTIMES and runtime_ready(candidate):
+                return candidate
+    return current_rt
+
+
 def threads() -> int:
     """Physical cores, near enough: using every logical thread makes the engine slower, not faster."""
     return max(1, (os.cpu_count() or 2) // 2)
