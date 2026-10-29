@@ -337,10 +337,10 @@ def self_test(rt: str, model_id: str, cancelled=None) -> dict:
     out = paths.DOWNLOADS / f"selftest-{rt}-{model_id}.wav"
     try:
         r = speak(rt, model_id, TEST_LINE, out, SAMPLE_VOICE, "en", cancelled, limit=900)
-        if r["seconds"] < 25:
-            # The first run after a download also pays for reading the model
-            # from disk for the first time. On a quick PC a second run costs a
-            # few seconds and gives the number the user will really see.
+        # On a graphics card, the first run pays for loading 3 GB from disk,
+        # CUDA graph warmup and cuBLAS initialization. Always run a second sentence
+        # on graphics cards so we measure actual generation speed.
+        if RUNTIMES[rt]["backend"] != "cpu" or r["seconds"] < 25:
             again = speak(rt, model_id, TEST_LINE, out, SAMPLE_VOICE, "en", cancelled, limit=900)
             if again["seconds"] / again["audio"] < r["seconds"] / r["audio"]:
                 r = again
@@ -437,7 +437,12 @@ def install_model(job, model_id: str, order: list[str]) -> dict:
             store.write(paths.INSTALLED, data)
             raise UserError(f"{m['name']} could not be set up again and was left as it was. " + " ".join(notes))
         raise UserError(f"{m['name']} was downloaded, but the engine could not make a test clip on this PC. " + " ".join(notes))
-    per10, rt = min(spoke)
+    # Prefer a graphics card runtime if any succeeded on this PC
+    gpu_spoke = [(p, r) for p, r in spoke if RUNTIMES[r]["backend"] != "cpu"]
+    if gpu_spoke:
+        per10, rt = min(gpu_spoke)
+    else:
+        per10, rt = min(spoke)
     data = installed()
     data["models"][model_id] = {"runtime": rt, "per10": per10, "tested": time.strftime("%Y-%m-%d %H:%M"), "notes": notes}
     store.write(paths.INSTALLED, data)

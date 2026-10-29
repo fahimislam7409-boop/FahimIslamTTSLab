@@ -391,8 +391,11 @@ const studio = {
             h("strong", { text: "⚡ Accelerate with " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + ": " }),
             h("span", { text: model.name + " is currently running on the processor. Switch to your graphics card for 10x-20x faster voice generation." })
           ),
-          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
+          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async (e) => {
+            e.target.disabled = true;
+            e.target.textContent = "Switching...";
             if (await attempt(() => api.post("/api/models/install", { id: model.id }))) { window.location.hash = "#models"; refresh(); }
+            else { e.target.disabled = false; }
           } })
         )
       );
@@ -794,8 +797,16 @@ const modelsView = {
         h("p", { class: "note", text: "Runs on " + m.runs_on + "." }),
         m.can_gpu ? h("div", { class: "gpu-switch-box" },
           h("div", { class: "gpu-badge" }, "⚡ Running on CPU — GPU Available!"),
-          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async () => {
-            if (await attempt(() => api.post("/api/models/install", { id: m.id }))) refresh();
+          h("button", { class: "btn small btn-switch-gpu", type: "button", text: "⚡ Switch to " + (S.plan && S.plan.gpu ? S.plan.gpu.name.replace(/^NVIDIA GeForce /i, "") : "GPU"), onclick: async (e) => {
+            e.target.disabled = true;
+            e.target.textContent = "Switching to GPU...";
+            if (await attempt(() => api.post("/api/models/install", { id: m.id }))) {
+              toast("Switching " + m.name + " to " + (S.plan && S.plan.gpu ? S.plan.gpu.name : "GPU") + "...");
+              refresh();
+            } else {
+              e.target.disabled = false;
+              e.target.textContent = "⚡ Switch to GPU";
+            }
           } })
         ) : "",
         m.per10 ? h("p", { class: "note", text: "On this PC, 10 seconds of voice takes about " + seconds(m.per10) + "." }) : "",
